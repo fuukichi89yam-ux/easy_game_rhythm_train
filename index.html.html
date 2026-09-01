@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Go! Go! ロコモーション！ふぃーばぁー</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            background-color: #0d0b0a;
+            color: #f3e5ab;
+            font-family: 'Georgia', 'Times New Roman', serif, sans-serif;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .btn-retro {
+            background: linear-gradient(180deg, #c59341 0%, #6e3f19 100%);
+            border: 2px solid #ffe8aa;
+            box-shadow: 0 4px 0 #361b07, 0 6px 12px rgba(0,0,0,0.8);
+            transition: all 0.08s ease;
+            text-shadow: 1px 1px 2px #000;
+        }
+        .btn-retro:active, .btn-diff.selected {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #361b07, 0 2px 5px rgba(0,0,0,0.8);
+        }
+        .btn-diff {
+            border: 2px solid #7c4d25;
+            background: rgba(20, 14, 10, 0.85);
+            color: #d4c39b;
+            transition: all 0.15s ease;
+        }
+        .btn-diff.selected {
+            border-color: #ffd700;
+            background: linear-gradient(180deg, #d4a359 0%, #7c4d25 100%);
+            color: #1a0f05;
+            font-weight: bold;
+            text-shadow: none;
+        }
+        .btn-coal {
+            background: linear-gradient(180deg, #444 0%, #111 100%);
+            color: #fff;
+            border-color: #888;
+            box-shadow: 0 5px 0 #000, 0 8px 12px rgba(0,0,0,0.7);
+        }
+        .btn-water {
+            background: linear-gradient(180deg, #2b6cb0 0%, #1a365d 100%);
+            color: #fff;
+            border-color: #63b3ed;
+            box-shadow: 0 5px 0 #0d1b2a, 0 8px 12px rgba(0,0,0,0.7);
+        }
+        /* 重厚感のあるタイトル額縁風スタイル */
+        .title-panel {
+            background: rgba(15, 12, 10, 0.88);
+            border: 3px solid #8b5a2b;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.9), 0 0 25px rgba(0,0,0,0.9);
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between items-center relative">
+
+    <!-- Canvas Wrapper -->
+    <div class="relative w-full h-full flex flex-col">
+        <canvas id="gameCanvas" class="w-full h-full"></canvas>
+
+        <!-- スタート / 難易度選択 / ゲームオーバー画面 (オーバーレイ) -->
+        <div id="overlay" class="absolute inset-0 bg-black/80 flex flex-col justify-center items-center p-4 text-center z-10 backdrop-blur-sm">
+            
+            <div class="title-panel max-w-xl w-full p-6 rounded-2xl flex flex-col items-center relative overflow-hidden">
+                <!-- タイトル用キャンバス（リアル機関車のイラスト表示） -->
+                <div class="w-full h-36 md:h-44 mb-2 relative flex justify-center items-center">
+                    <canvas id="titleLocoCanvas" class="w-full h-full rounded-lg"></canvas>
+                </div>
+
+                <h1 id="overlayTitle" class="text-2xl md:text-4xl font-black text-amber-400 tracking-wider mb-2 drop-shadow-lg" style="text-shadow: 2px 2px 4px #000;">
+                    Go! Go! ロコモーション！<br><span class="text-yellow-300 text-3xl md:text-5xl">ふぃーばぁー</span>
+                </h1>
+                
+                <p id="overlaySub" class="text-xs md:text-sm text-amber-100/90 mb-4 leading-relaxed">
+                    リズムに合わせて【石炭🔥】と【水💧】を投入せよ！<br>
+                    10連続PERFECTで黄金の【FEVER MODE】発動！<br>
+                    稀に出現するオイル缶🛢️でボイラー修復！10回ミスで停止。
+                </p>
+
+                <!-- 難易度選択ボタン -->
+                <div id="difficultyContainer" class="flex flex-wrap justify-center gap-2 mb-5 w-full">
+                    <button class="btn-diff px-3 py-2 rounded text-xs md:text-sm flex-1" data-diff="EASY">簡単</button>
+                    <button class="btn-diff selected px-3 py-2 rounded text-xs md:text-sm flex-1" data-diff="NORMAL">普通</button>
+                    <button class="btn-diff px-3 py-2 rounded text-xs md:text-sm flex-1" data-diff="HARD">難しい</button>
+                    <button class="btn-diff px-3 py-2 rounded text-xs md:text-sm flex-1" data-diff="EXPERT">超難しい</button>
+                </div>
+
+                <button id="startBtn" class="btn-retro px-8 py-3.5 text-lg md:text-2xl font-bold text-amber-100 rounded-xl cursor-pointer w-full max-w-xs tracking-widest">
+                    出発進行！ (START)
+                </button>
+            </div>
+        </div>
+
+        <!-- タッチボタンUI（画面下部） -->
+        <div id="controlsUI" class="absolute bottom-4 left-0 right-0 px-4 flex justify-between items-center gap-4 max-w-2xl mx-auto z-5 pointer-events-auto opacity-95">
+            <button id="coalBtn" class="btn-retro btn-coal flex-1 py-4 rounded-xl font-extrabold text-lg md:text-2xl flex flex-col items-center justify-center">
+                <span>🔥 石炭 (A / ⬅️)</span>
+                <span class="text-xs font-normal text-gray-400">COAL</span>
+            </button>
+            <button id="waterBtn" class="btn-retro btn-water flex-1 py-4 rounded-xl font-extrabold text-lg md:text-2xl flex flex-col items-center justify-center">
+                <span>💧 水 (D / ➡️)</span>
+                <span class="text-xs font-normal text-blue-300">WATER</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- Web Audio API (効果音) ---
+        class SoundSystem {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playTone(freq, duration, type = 'sine', volume = 0.1) {
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(volume, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch (e) {}
+            }
+
+            playWhistle() {
+                if (!this.ctx) return;
+                try {
+                    const t = this.ctx.currentTime;
+                    const osc1 = this.ctx.createOscillator();
+                    const osc2 = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc1.type = 'sawtooth'; osc2.type = 'sine';
+                    osc1.frequency.setValueAtTime(587.33, t);
+                    osc2.frequency.setValueAtTime(880, t);
+                    gain.gain.setValueAtTime(0, t);
+                    gain.gain.linearRampToValueAtTime(0.18, t + 0.1);
+                    gain.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+                    osc1.connect(gain); osc2.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc1.start(t); osc2.start(t);
+                    osc1.stop(t + 1.2); osc2.stop(t + 1.2);
+                } catch(e) {}
+            }
+
+            playCoal() { this.playTone(140, 0.12, 'triangle', 0.25); }
+            playWater() { this.playTone(420, 0.15, 'sine', 0.18); }
+            playRollHit() { this.playTone(280, 0.05, 'square', 0.12); }
+            playHeal() {
+                if (!this.ctx) return;
+                [523.25, 659.25, 783.99].forEach((freq, i) => {
+                    setTimeout(() => this.playTone(freq, 0.15, 'sine', 0.2), i * 70);
+                });
+            }
+            playMiss() { this.playTone(90, 0.35, 'sawtooth', 0.35); }
+            playBeat() { this.playTone(750, 0.02, 'sine', 0.015); }
+            playFever() {
+                if (!this.ctx) return;
+                const arpeggio = [440, 554.37, 659.25, 880];
+                arpeggio.forEach((f, i) => {
+                    setTimeout(() => this.playTone(f, 0.2, 'triangle', 0.25), i * 80);
+                });
+            }
+            playGoal() {
+                if (!this.ctx) return;
+                [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+                    setTimeout(() => this.playTone(freq, 0.4, 'triangle', 0.25), i * 150);
+                });
+            }
+        }
+
+        const sounds = new SoundSystem();
+
+        // --- 難易度設定 ---
+        const DIFFICULTY_SETTINGS = {
+            EASY:   { bpm: 75,  tripletProb: 0.10, rollProb: 0.15, speedMult: 0.8 },
+            NORMAL: { bpm: 96,  tripletProb: 0.30, rollProb: 0.25, speedMult: 1.0 },
+            HARD:   { bpm: 115, tripletProb: 0.40, rollProb: 0.35, speedMult: 1.25 },
+            EXPERT: { bpm: 135, tripletProb: 0.50, rollProb: 0.40, speedMult: 1.5 }
+        };
+
+        let currentDifficulty = 'NORMAL';
+
+        // --- ゲーム状態・要素 ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const titleLocoCanvas = document.getElementById('titleLocoCanvas');
+        const titleCtx = titleLocoCanvas.getContext('2d');
+
+        const overlay = document.getElementById('overlay');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlaySub = document.getElementById('overlaySub');
+        const difficultyContainer = document.getElementById('difficultyContainer');
+        const startBtn = document.getElementById('startBtn');
+        const coalBtn = document.getElementById('coalBtn');
+        const waterBtn = document.getElementById('waterBtn');
+
+        const STATE = { MENU: 0, PLAYING: 1, GAMEOVER: 2, CLEAR: 3 };
+        let gameState = STATE.MENU;
+
+        let lastTime = 0;
+        let distanceRemaining = 5000;
+        const TOTAL_DISTANCE = 5000;
+        let currentSpeed = 0;
+        let targetSpeed = 60;
+        let missCount = 0;
+        const MAX_MISSES = 10;
+        const HEAL_ITEM_PROBABILITY = 0.008;
+
+        let consecutivePerfects = 0;
+        let isFeverMode = false;
+        let feverTimer = 0;
+        const FEVER_DURATION = 5.0;
+
+        let bpm = 96;
+        let beatInterval = 60 / bpm;
+        let beatTimer = 0;
+        let notes = []; 
+        let patternQueue = [];
+
+        let bgOffset = 0;
+        let particles = [];
+        let targetArea = { x: 0, y: 0, radius: 38 };
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            targetArea.x = canvas.width / 2;
+            targetArea.y = canvas.height * 0.72;
+            targetArea.radius = Math.min(canvas.width * 0.08, 45);
+
+            // タイトルキャンバスリサイズ
+            const rect = titleLocoCanvas.parentElement.getBoundingClientRect();
+            titleLocoCanvas.width = rect.width;
+            titleLocoCanvas.height = rect.height;
+            drawTitleLocomotive();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        document.querySelectorAll('.btn-diff').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.btn-diff').forEach(b => b.classList.remove('selected'));
+                e.target.classList.add('selected');
+                currentDifficulty = e.target.getAttribute('data-diff');
+            });
+        });
+
+        // --- タイトル用リアル機関車イラスト描画 ---
+        function drawTitleLocomotive() {
+            const w = titleLocoCanvas.width;
+            const h = titleLocoCanvas.height;
+            if (w === 0 || h === 0) return;
+
+            titleCtx.clearRect(0, 0, w, h);
+
+            // 背景：ドラマチックな夜空グラデーション
+            const bgGrad = titleCtx.createLinearGradient(0, 0, 0, h);
+            bgGrad.addColorStop(0, '#090d16');
+            bgGrad.addColorStop(0.6, '#1c1524');
+            bgGrad.addColorStop(1, '#3a1f18');
+            titleCtx.fillStyle = bgGrad;
+            titleCtx.fillRect(0, 0, w, h);
+
+            // 満月
+            titleCtx.save();
+            titleCtx.fillStyle = '#fff4d0';
+            titleCtx.shadowColor = '#ffe599';
+            titleCtx.shadowBlur = 20;
+            titleCtx.beginPath();
+            titleCtx.arc(w * 0.75, h * 0.3, 24, 0, Math.PI * 2);
+            titleCtx.fill();
+            titleCtx.restore();
+
+            // 立ち上る背景の蒸気・雲
+            titleCtx.fillStyle = 'rgba(200, 190, 210, 0.15)';
+            for (let i = 0; i < 6; i++) {
+                titleCtx.beginPath();
+                titleCtx.arc(w * 0.2 + i * 40, h * 0.35 - Math.sin(i) * 15, 30 + i * 8, 0, Math.PI * 2);
+                titleCtx.fill();
+            }
+
+            // 機関車（迫力のある斜め前面パース描画）
+            const cx = w * 0.45;
+            const cy = h * 0.78;
+
+            // 線路
+            titleCtx.strokeStyle = '#666';
+            titleCtx.lineWidth = 3;
+            titleCtx.beginPath();
+            titleCtx.moveTo(0, cy + 15); titleCtx.lineTo(w, cy + 15);
+            titleCtx.moveTo(0, cy + 25); titleCtx.lineTo(w, cy + 25);
+            titleCtx.stroke();
+
+            // ボイラー胴体（金属感グラデーション）
+            const boilerGrad = titleCtx.createLinearGradient(cx - 90, cy - 60, cx - 90, cy);
+            boilerGrad.addColorStop(0, '#555');
+            boilerGrad.addColorStop(0.2, '#222');
+            boilerGrad.addColorStop(0.7, '#111');
+            boilerGrad.addColorStop(1, '#333');
+
+            titleCtx.fillStyle = boilerGrad;
+            titleCtx.beginPath();
+            titleCtx.ellipse(cx, cy - 25, 75, 30, 0, 0, Math.PI * 2);
+            titleCtx.fill();
+            titleCtx.strokeStyle = '#555';
+            titleCtx.lineWidth = 2;
+            titleCtx.stroke();
+
+            // キャブ (運転席)
+            titleCtx.fillStyle = '#1a1a1a';
+            titleCtx.fillRect(cx + 40, cy - 65, 55, 45);
+            titleCtx.fillStyle = '#aa0000'; // 屋根
+            titleCtx.fillRect(cx + 35, cy - 70, 65, 7);
+            
+            // 窓からの温かい光
+            titleCtx.fillStyle = '#ffb74d';
+            titleCtx.fillRect(cx + 55, cy - 55, 18, 18);
+
+            // 煙突
+            const chimneyGrad = titleCtx.createLinearGradient(cx - 50, 0, cx - 35, 0);
+            chimneyGrad.addColorStop(0, '#333');
+            chimneyGrad.addColorStop(0.5, '#666');
+            chimneyGrad.addColorStop(1, '#111');
+            titleCtx.fillStyle = chimneyGrad;
+            titleCtx.fillRect(cx - 52, cy - 75, 18, 30);
+            // 煙突の縁
+            titleCtx.fillRect(cx - 56, cy - 78, 26, 6);
+
+            // 蒸気ドーム
+            titleCtx.fillStyle = '#444';
+            titleCtx.beginPath();
+            titleCtx.arc(cx, cy - 58, 12, Math.PI, 0);
+            titleCtx.fill();
+
+            // ナンバープレート "C57 1"
+            titleCtx.fillStyle = '#8b0000';
+            titleCtx.fillRect(cx - 65, cy - 25, 26, 12);
+            titleCtx.strokeStyle = '#ffd700';
+            titleCtx.lineWidth = 1;
+            titleCtx.strokeRect(cx - 65, cy - 25, 26, 12);
+            titleCtx.fillStyle = '#ffd700';
+            titleCtx.font = 'bold 8px sans-serif';
+            titleCtx.textAlign = 'center';
+            titleCtx.fillText('C57 1', cx - 52, cy - 16);
+
+            // 迫力ある巨大フロントヘッドライト
+            titleCtx.save();
+            const lightX = cx - 75;
+            const lightY = cy - 30;
+            
+            // 強烈な光線
+            const beamGrad = titleCtx.createRadialGradient(lightX, lightY, 2, lightX - 180, lightY, 140);
+            beamGrad.addColorStop(0, 'rgba(255, 255, 220, 0.95)');
+            beamGrad.addColorStop(0.3, 'rgba(255, 220, 130, 0.4)');
+            beamGrad.addColorStop(1, 'rgba(255, 200, 100, 0)');
+            titleCtx.fillStyle = beamGrad;
+            titleCtx.beginPath();
+            titleCtx.moveTo(lightX, lightY);
+            titleCtx.lineTo(lightX - 160, lightY - 50);
+            titleCtx.lineTo(lightX - 160, lightY + 60);
+            titleCtx.closePath();
+            titleCtx.fill();
+
+            // ライト本体
+            titleCtx.fillStyle = '#ffd700';
+            titleCtx.beginPath();
+            titleCtx.arc(lightX, lightY, 10, 0, Math.PI * 2);
+            titleCtx.fill();
+            titleCtx.fillStyle = '#ffffff';
+            titleCtx.beginPath();
+            titleCtx.arc(lightX, lightY, 7, 0, Math.PI * 2);
+            titleCtx.fill();
+            titleCtx.restore();
+
+            // 煙突からの重厚な煙エフェクト
+            titleCtx.save();
+            for (let i = 0; i < 7; i++) {
+                const opacity = 0.8 - i * 0.1;
+                titleCtx.fillStyle = `rgba(220, 215, 210, ${opacity})`;
+                titleCtx.beginPath();
+                titleCtx.arc(cx - 50 - i * 22, cy - 80 - i * 8, 14 + i * 5, 0, Math.PI * 2);
+                titleCtx.fill();
+            }
+            titleCtx.restore();
+        }
+
+        function initGame() {
+            sounds.init();
+            sounds.playWhistle();
+
+            const setting = DIFFICULTY_SETTINGS[currentDifficulty];
+            bpm = setting.bpm;
+            beatInterval = 60 / bpm;
+
+            distanceRemaining = TOTAL_DISTANCE;
+            currentSpeed = 50 * setting.speedMult;
+            targetSpeed = 60 * setting.speedMult;
+            missCount = 0;
+            consecutivePerfects = 0;
+            isFeverMode = false;
+            feverTimer = 0;
+
+            notes = [];
+            patternQueue = [];
+            particles = [];
+            beatTimer = 0;
+
+            gameState = STATE.PLAYING;
+            overlay.classList.add('hidden');
+        }
+
+        // --- パターン生成 ---
+        function generateNextPattern() {
+            const types = ['coal', 'water'];
+            const setting = DIFFICULTY_SETTINGS[currentDifficulty];
+
+            if (Math.random() < HEAL_ITEM_PROBABILITY) {
+                const type = types[Math.floor(Math.random() * 2)];
+                patternQueue.push({ type, subType: 'heal', delay: 0 });
+                return;
+            }
+
+            const rand = Math.random();
+
+            if (rand < (1 - setting.tripletProb - setting.rollProb)) {
+                const type = types[Math.floor(Math.random() * 2)];
+                patternQueue.push({ type, subType: 'normal', delay: 0 });
+            } else if (rand < (1 - setting.rollProb)) {
+                const mainType = types[Math.floor(Math.random() * 2)];
+                const otherType = mainType === 'coal' ? 'water' : 'coal';
+                patternQueue.push({ type: mainType, subType: 'triplet', delay: 0 });
+                patternQueue.push({ type: otherType, subType: 'triplet', delay: beatInterval / 3 });
+                patternQueue.push({ type: mainType, subType: 'triplet', delay: (beatInterval / 3) * 2 });
+            } else {
+                const type = types[Math.floor(Math.random() * 2)];
+                patternQueue.push({ 
+                    type, 
+                    subType: 'roll', 
+                    delay: 0, 
+                    length: canvas.width * 0.2, 
+                    hitsRequired: currentDifficulty === 'EXPERT' ? 6 : (currentDifficulty === 'EASY' ? 3 : 4), 
+                    hitsDone: 0 
+                });
+            }
+        }
+
+        function spawnNoteFromPattern(p) {
+            const setting = DIFFICULTY_SETTINGS[currentDifficulty];
+            const noteSpeed = canvas.width * 0.42 * setting.speedMult;
+            notes.push({
+                type: p.type,
+                subType: p.subType,
+                x: canvas.width + 50,
+                y: targetArea.y,
+                hit: false,
+                missed: false,
+                length: p.length || 0,
+                hitsRequired: p.hitsRequired || 1,
+                hitsDone: p.hitsDone || 0
+            });
+        }
+
+        // --- 入力判定 ---
+        function handleInput(type) {
+            if (gameState !== STATE.PLAYING) return;
+
+            let closestNote = null;
+            let minDistance = Infinity;
+
+            for (let note of notes) {
+                if (note.missed) continue;
+                if (note.hit && note.subType !== 'roll') continue;
+
+                let noteStartX = note.x;
+                let noteEndX = note.x + note.length;
+
+                let dist = Math.abs(noteStartX - targetArea.x);
+                if (note.subType === 'roll') {
+                    if (targetArea.x >= noteStartX - targetArea.radius && targetArea.x <= noteEndX + targetArea.radius) {
+                        dist = 0;
+                    }
+                }
+
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    closestNote = note;
+                }
+            }
+
+            const hitThreshold = targetArea.radius * 1.5;
+
+            if (closestNote && (minDistance <= hitThreshold || closestNote.subType === 'roll')) {
+                if (closestNote.subType === 'heal') {
+                    closestNote.hit = true;
+                    if (missCount > 0) missCount--;
+                    sounds.playHeal();
+                    createFeedbackText('REPAIR! 🛢️ -1 MISS', targetArea.x, targetArea.y - 50, '#33ff88');
+                    registerPerfect();
+                    return;
+                }
+
+                if (closestNote.type === type) {
+                    if (closestNote.subType === 'roll') {
+                        closestNote.hitsDone++;
+                        sounds.playRollHit();
+                        createFeedbackText('HIT!', targetArea.x, targetArea.y - 40, '#ffff00');
+
+                        if (closestNote.hitsDone >= closestNote.hitsRequired) {
+                            closestNote.hit = true;
+                            registerPerfect();
+                        }
+                        return;
+                    }
+
+                    closestNote.hit = true;
+                    if (type === 'coal') sounds.playCoal();
+                    else sounds.playWater();
+
+                    registerPerfect();
+                    createSmokeParticles(5);
+
+                } else {
+                    closestNote.missed = true;
+                    processMiss("間違えた！");
+                }
+            } else {
+                processMiss("タイミングミス！");
+            }
+        }
+
+        function registerPerfect() {
+            consecutivePerfects++;
+            const setting = DIFFICULTY_SETTINGS[currentDifficulty];
+            targetSpeed = Math.min(targetSpeed + (isFeverMode ? 8 : 4), (isFeverMode ? 160 : 120) * setting.speedMult);
+            createFeedbackText('PERFECT!', targetArea.x, targetArea.y - 50, '#55ff55');
+
+            if (consecutivePerfects >= 10 && !isFeverMode) {
+                triggerFever();
+            }
+        }
+
+        function triggerFever() {
+            isFeverMode = true;
+            feverTimer = FEVER_DURATION;
+            sounds.playFever();
+            createFeedbackText('🔥 FEVER MODE! 🔥', canvas.width / 2, canvas.height * 0.35, '#ffd700');
+        }
+
+        function processMiss(reason) {
+            consecutivePerfects = 0;
+            missCount++;
+            sounds.playMiss();
+            const setting = DIFFICULTY_SETTINGS[currentDifficulty];
+            targetSpeed = Math.max(targetSpeed - 15, 30 * setting.speedMult);
+            createFeedbackText(reason, targetArea.x, targetArea.y - 50, '#ff4444');
+
+            if (missCount >= MAX_MISSES) {
+                gameOver();
+            }
+        }
+
+        function gameOver() {
+            gameState = STATE.GAMEOVER;
+            overlayTitle.innerHTML = "ゲームオーバー";
+            overlayTitle.className = "text-2xl md:text-4xl font-black text-red-500 tracking-wider mb-2 drop-shadow-md";
+            overlaySub.innerHTML = `ボイラー限界！機関車停止。<br>難易度: ${currentDifficulty} / 残り: ${(distanceRemaining / 1000).toFixed(2)} km`;
+            difficultyContainer.classList.remove('hidden');
+            startBtn.textContent = "もう一度挑戦 (RETRY)";
+            overlay.classList.remove('hidden');
+        }
+
+        function gameClear() {
+            gameState = STATE.CLEAR;
+            sounds.playGoal();
+            sounds.playWhistle();
+            overlayTitle.innerHTML = "目的地到着！";
+            overlayTitle.className = "text-2xl md:text-4xl font-black text-yellow-300 tracking-wider mb-2 drop-shadow-md";
+            overlaySub.innerHTML = `見事目的地に到着しました！<br>難易度: ${currentDifficulty} クリア！`;
+            difficultyContainer.classList.remove('hidden');
+            startBtn.textContent = "もう一度遊ぶ (PLAY AGAIN)";
+            overlay.classList.remove('hidden');
+        }
+
+        // --- パーティクル & テキスト ---
+        let feedbackTexts = [];
+        function createFeedbackText(text, x, y, color) {
+            feedbackTexts.push({ text, x, y, color, alpha: 1.0, life: 0.6 });
+        }
+
+        function createSmokeParticles(count) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: canvas.width * 0.28,
+                    y: canvas.height * 0.32,
+                    vx: -Math.random() * 5 - (currentSpeed * 0.06),
+                    vy: -Math.random() * 2 - 1.5,
+                    radius: Math.random() * 12 + 10,
+                    alpha: 0.85
+                });
+            }
+        }
+
+        // --- メインアップデート ---
+        function update(delta) {
+            if (gameState !== STATE.PLAYING) return;
+
+            const setting = DIFFICULTY_SETTINGS[currentDifficulty];
+
+            if (isFeverMode) {
+                feverTimer -= delta;
+                targetSpeed = 140 * setting.speedMult;
+                if (feverTimer <= 0) {
+                    isFeverMode = false;
+                    feverTimer = 0;
+                    createFeedbackText('NORMAL MODE', canvas.width / 2, canvas.height * 0.35, '#ffffff');
+                }
+            }
+
+            currentSpeed += (targetSpeed - currentSpeed) * delta * 2.5;
+
+            const speedMps = (currentSpeed * 1000) / 3600;
+            distanceRemaining -= speedMps * delta * 3.5;
+
+            if (distanceRemaining <= 0) {
+                distanceRemaining = 0;
+                gameClear();
+                return;
+            }
+
+            bgOffset += (currentSpeed * 2) * delta;
+
+            beatTimer += delta;
+            if (beatTimer >= beatInterval) {
+                beatTimer -= beatInterval;
+                generateNextPattern();
+            }
+
+            for (let i = patternQueue.length - 1; i >= 0; i--) {
+                let p = patternQueue[i];
+                p.delay -= delta;
+                if (p.delay <= 0) {
+                    spawnNoteFromPattern(p);
+                    patternQueue.splice(i, 1);
+                }
+            }
+
+            const noteSpeed = canvas.width * 0.42 * setting.speedMult;
+            for (let i = notes.length - 1; i >= 0; i--) {
+                let note = notes[i];
+                note.x -= noteSpeed * delta;
+
+                const noteTailX = note.x + note.length;
+
+                if (!note.hit && !note.missed && noteTailX < targetArea.x - targetArea.radius * 1.5) {
+                    note.missed = true;
+                    if (note.subType !== 'heal') {
+                        processMiss("スルー！");
+                    }
+                }
+
+                if (noteTailX < -100) {
+                    notes.splice(i, 1);
+                }
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.radius += delta * 14;
+                p.alpha -= delta * 0.75;
+                if (p.alpha <= 0) particles.splice(i, 1);
+            }
+
+            if (Math.random() < delta * (currentSpeed / 7)) {
+                createSmokeParticles(1);
+            }
+
+            for (let i = feedbackTexts.length - 1; i >= 0; i--) {
+                let ft = feedbackTexts[i];
+                ft.y -= delta * 35;
+                ft.alpha -= delta / ft.life;
+                if (ft.alpha <= 0) feedbackTexts.splice(i, 1);
+            }
+        }
+
+        // --- 描画 (リアル表現) ---
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. 空背景 (星空・グラデーション)
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            if (isFeverMode) {
+                skyGrad.addColorStop(0, '#2b1d00');
+                skyGrad.addColorStop(0.5, '#664d00');
+                skyGrad.addColorStop(1, '#cca300');
+            } else {
+                skyGrad.addColorStop(0, '#0a0e1a');
+                skyGrad.addColorStop(0.4, '#1a1829');
+                skyGrad.addColorStop(0.75, '#3b202a');
+                skyGrad.addColorStop(1, '#61332a');
+            }
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 遠景の山脈（パララックス 2層構造）
+            // 遠山
+            ctx.fillStyle = isFeverMode ? '#443500' : '#141021';
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height * 0.5);
+            for (let i = 0; i <= canvas.width + 120; i += 120) {
+                let y = canvas.height * 0.44 + Math.sin((i + bgOffset * 0.05) * 0.003) * 55;
+                ctx.lineTo(i, y);
+            }
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.lineTo(0, canvas.height);
+            ctx.fill();
+
+            // 近山・木々のシルエット
+            ctx.fillStyle = isFeverMode ? '#221a00' : '#1a0d16';
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height * 0.52);
+            for (let i = 0; i <= canvas.width + 80; i += 80) {
+                let y = canvas.height * 0.47 + Math.sin((i + bgOffset * 0.12) * 0.007) * 30;
+                ctx.lineTo(i, y);
+            }
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.lineTo(0, canvas.height);
+            ctx.fill();
+
+            // 3. 線路 & バラスト（砂利）
+            const groundY = canvas.height * 0.52;
+            ctx.fillStyle = '#21160e';
+            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+
+            // バラストの粒々質感
+            ctx.fillStyle = '#150d08';
+            for (let x = 0; x < canvas.width; x += 40) {
+                ctx.fillRect(x + (bgOffset % 40), groundY + 5, 20, canvas.height - groundY);
+            }
+
+            // 枕木
+            ctx.fillStyle = '#170c06';
+            const tieSpacing = 32;
+            const tieOffset = (bgOffset % tieSpacing);
+            for (let x = -tieSpacing; x < canvas.width + tieSpacing; x += tieSpacing) {
+                ctx.fillRect(x - tieOffset, groundY + 10, 14, 22);
+                ctx.fillStyle = '#0a0502';
+                ctx.fillRect(x - tieOffset + 2, groundY + 12, 10, 18);
+                ctx.fillStyle = '#170c06';
+            }
+
+            // スチールレール (金属の光沢)
+            const railGrad = ctx.createLinearGradient(0, groundY + 8, 0, groundY + 14);
+            railGrad.addColorStop(0, '#e0e0e0');
+            railGrad.addColorStop(0.5, '#777777');
+            railGrad.addColorStop(1, '#222222');
+            ctx.fillStyle = railGrad;
+            ctx.fillRect(0, groundY + 8, canvas.width, 5);
+            ctx.fillRect(0, groundY + 27, canvas.width, 5);
+
+            // 4. リアル蒸気パーティクル
+            particles.forEach(p => {
+                ctx.save();
+                const pGrad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius);
+                if (isFeverMode) {
+                    pGrad.addColorStop(0, `rgba(255, 230, 130, ${p.alpha})`);
+                    pGrad.addColorStop(1, `rgba(255, 180, 0, 0)`);
+                } else {
+                    pGrad.addColorStop(0, `rgba(230, 225, 220, ${p.alpha})`);
+                    pGrad.addColorStop(0.6, `rgba(140, 135, 130, ${p.alpha * 0.5})`);
+                    pGrad.addColorStop(1, `rgba(50, 50, 50, 0)`);
+                }
+                ctx.fillStyle = pGrad;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // 5. 蒸気機関車 (細部までリッチなリアル描画)
+            drawRealTrain(canvas.width * 0.15, groundY - 55);
+
+            // 6. HUD (UI)
+            drawHUD();
+
+            // 7. リズムレーン & ノーツ
+            drawRhythmSection();
+
+            // 8. テキストエフェクト
+            feedbackTexts.forEach(ft => {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, ft.alpha);
+                ctx.fillStyle = ft.color;
+                ctx.font = 'bold 24px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#000';
+                ctx.shadowBlur = 6;
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+            });
+        }
+
+        // --- リアル調・重厚な機関車描画 ---
+        function drawRealTrain(x, y) {
+            ctx.save();
+            const wheelAngle = (bgOffset * 0.05) % (Math.PI * 2);
+
+            // ボイラー金属グラデーション
+            const bodyGrad = ctx.createLinearGradient(x, y, x, y + 45);
+            if (isFeverMode) {
+                bodyGrad.addColorStop(0, '#ffe57f');
+                bodyGrad.addColorStop(0.3, '#ffb300');
+                bodyGrad.addColorStop(0.7, '#ff6f00');
+                bodyGrad.addColorStop(1, '#ffe57f');
+            } else {
+                bodyGrad.addColorStop(0, '#555555');
+                bodyGrad.addColorStop(0.25, '#222222');
+                bodyGrad.addColorStop(0.75, '#111111');
+                bodyGrad.addColorStop(1, '#333333');
+            }
+
+            if (isFeverMode) {
+                ctx.shadowColor = '#ffd700';
+                ctx.shadowBlur = 25;
+            }
+
+            // ボイラー本体
+            ctx.fillStyle = bodyGrad;
+            ctx.fillRect(x, y + 10, 130, 42);
+            ctx.strokeStyle = isFeverMode ? '#ffffff' : '#444444';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(x, y + 10, 130, 42);
+
+            // リベット（金属のリベット列）
+            ctx.fillStyle = isFeverMode ? '#ffffff' : '#666';
+            for (let rx = x + 10; rx < x + 130; rx += 20) {
+                ctx.beginPath();
+                ctx.arc(rx, y + 13, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // キャブ (運転席)
+            const cabGrad = ctx.createLinearGradient(x + 95, y - 12, x + 95, y + 50);
+            cabGrad.addColorStop(0, isFeverMode ? '#ffa000' : '#2a2a2a');
+            cabGrad.addColorStop(1, isFeverMode ? '#ff6f00' : '#111111');
+            ctx.fillStyle = cabGrad;
+            ctx.fillRect(x + 95, y - 12, 45, 64);
+            ctx.strokeRect(x + 95, y - 12, 45, 64);
+
+            // キャブの窓
+            ctx.fillStyle = '#ffb74d';
+            ctx.fillRect(x + 105, y - 2, 16, 18);
+            ctx.strokeStyle = '#000';
+            ctx.strokeRect(x + 105, y - 2, 16, 18);
+
+            // 屋根
+            ctx.fillStyle = isFeverMode ? '#d50000' : '#7f0000';
+            ctx.fillRect(x + 90, y - 18, 55, 8);
+
+            // 煙突 (立体グラデーション)
+            const chimneyGrad = ctx.createLinearGradient(x + 20, y - 15, x + 36, y - 15);
+            chimneyGrad.addColorStop(0, '#222');
+            chimneyGrad.addColorStop(0.5, '#666');
+            chimneyGrad.addColorStop(1, '#111');
+            ctx.fillStyle = chimneyGrad;
+            ctx.fillRect(x + 20, y - 15, 16, 25);
+            ctx.fillRect(x + 17, y - 18, 22, 5);
+
+            // 蒸気ドーム
+            ctx.fillStyle = isFeverMode ? '#ffc107' : '#444';
+            ctx.beginPath();
+            ctx.arc(x + 65, y + 10, 12, Math.PI, 0);
+            ctx.fill();
+
+            // フロント・ヘッドライト (強烈なライティング)
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(x - 2, y + 22, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // ライトの広範囲放射光
+            const lightGrad = ctx.createRadialGradient(x - 2, y + 22, 3, x - 130, y + 22, 130);
+            lightGrad.addColorStop(0, isFeverMode ? 'rgba(255, 255, 180, 0.95)' : 'rgba(255, 240, 180, 0.6)');
+            lightGrad.addColorStop(1, 'rgba(255, 200, 100, 0)');
+            ctx.fillStyle = lightGrad;
+            ctx.beginPath();
+            ctx.moveTo(x - 2, y + 22);
+            ctx.lineTo(x - 140, y - 25);
+            ctx.lineTo(x - 140, y + 70);
+            ctx.closePath();
+            ctx.fill();
+
+            // 精巧な車輪描画関数
+            function drawDetailedWheel(wx, wy, radius) {
+                ctx.save();
+                ctx.translate(wx, wy);
+                ctx.rotate(wheelAngle);
+
+                // 外枠リム
+                ctx.fillStyle = isFeverMode ? '#ff8f00' : '#222';
+                ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = isFeverMode ? '#fff' : '#ddd';
+                ctx.lineWidth = 3; ctx.stroke();
+
+                // 内輪
+                ctx.fillStyle = isFeverMode ? '#ffe082' : '#555';
+                ctx.beginPath(); ctx.arc(0, 0, radius * 0.4, 0, Math.PI * 2); ctx.fill();
+
+                // スポーク (放射状の車輪の骨組み)
+                ctx.strokeStyle = isFeverMode ? '#fff' : '#aaa';
+                ctx.lineWidth = 2;
+                for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            }
+
+            // 動輪3基
+            drawDetailedWheel(x + 30, y + 54, 18);
+            drawDetailedWheel(x + 72, y + 54, 18);
+            drawDetailedWheel(x + 114, y + 54, 18);
+
+            // 複雑なピストン・サイドロッド（メカニカル機構）
+            const rodOffsetX = Math.cos(wheelAngle) * 12;
+            const rodOffsetY = Math.sin(wheelAngle) * 12;
+
+            ctx.strokeStyle = isFeverMode ? '#ffffff' : '#e0e0e0';
+            ctx.lineWidth = 4.5;
+            ctx.beginPath();
+            ctx.moveTo(x + 30 + rodOffsetX, y + 54 + rodOffsetY);
+            ctx.lineTo(x + 114 + rodOffsetX, y + 54 + rodOffsetY);
+            ctx.stroke();
+
+            // ピストンシリンダー
+            ctx.fillStyle = '#333';
+            ctx.fillRect(x - 15, y + 42, 30, 18);
+            ctx.strokeStyle = '#888';
+            ctx.strokeRect(x - 15, y + 42, 30, 18);
+
+            // クロスヘッド＆ピストンロッド
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(x, y + 51);
+            ctx.lineTo(x + 30 + rodOffsetX, y + 54 + rodOffsetY);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // --- HUD描画 ---
+        function drawHUD() {
+            ctx.save();
+
+            ctx.fillStyle = 'rgba(15, 12, 10, 0.88)';
+            ctx.strokeStyle = isFeverMode ? '#ffd700' : '#8b5a2b';
+            ctx.lineWidth = 3;
+            ctx.fillRect(15, 15, canvas.width - 30, 75);
+            ctx.strokeRect(15, 15, canvas.width - 30, 75);
+
+            // 1. 残り距離
+            const distKm = (distanceRemaining / 1000).toFixed(2);
+            ctx.fillStyle = '#f3e5ab';
+            ctx.font = 'bold 14px Georgia, serif';
+            ctx.fillText(`駅まで: ${distKm} km`, 25, 38);
+
+            const barX = 25;
+            const barY = 46;
+            const barW = Math.min(canvas.width * 0.25, 160);
+            const barH = 10;
+            const progress = Math.max(0, 1 - (distanceRemaining / TOTAL_DISTANCE));
+
+            ctx.fillStyle = '#3a2312';
+            ctx.fillRect(barX, barY, barW, barH);
+            ctx.fillStyle = isFeverMode ? '#ffd700' : '#c59341';
+            ctx.fillRect(barX, barY, barW * progress, barH);
+
+            // 2. 速度 & 難易度
+            const speedX = barX + barW + 15;
+            ctx.fillStyle = isFeverMode ? '#ffd700' : '#f3e5ab';
+            ctx.font = 'bold 14px Georgia, serif';
+            ctx.fillText(`速度: ${Math.round(currentSpeed)} km/h`, speedX, 42);
+            ctx.font = '11px sans-serif';
+            ctx.fillStyle = '#aaa';
+            ctx.fillText(`[${currentDifficulty}]`, speedX, 58);
+
+            // 3. PERFECTコンボ & フィーバー
+            const comboX = speedX + 115;
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 13px Georgia, serif';
+            if (isFeverMode) {
+                ctx.fillStyle = '#ffd700';
+                ctx.fillText(`🔥 FEVER: ${feverTimer.toFixed(1)}s`, comboX, 42);
+            } else {
+                ctx.fillText(`コンボ: ${consecutivePerfects}/10`, comboX, 42);
+            }
+
+            // 4. ダメージゲージ
+            const missX = canvas.width - 185;
+            ctx.fillStyle = '#f3e5ab';
+            ctx.font = 'bold 12px Georgia, serif';
+            ctx.fillText(`ダメージ: ${missCount}/${MAX_MISSES}`, missX, 35);
+
+            const missBarX = missX;
+            const missBarY = 45;
+            const missBarW = 160;
+            const missBarH = 12;
+            
+            ctx.fillStyle = '#2b0d0d';
+            ctx.fillRect(missBarX, missBarY, missBarW, missBarH);
+            
+            const missProgress = missCount / MAX_MISSES;
+            ctx.fillStyle = missCount > 7 ? '#ff2222' : '#ff9900';
+            ctx.fillRect(missBarX, missBarY, missBarW * missProgress, missBarH);
+            
+            ctx.strokeStyle = '#777';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(missBarX, missBarY, missBarW, missBarH);
+
+            ctx.restore();
+        }
+
+        // --- リズムUI & ノーツ描画 ---
+        function drawRhythmSection() {
+            ctx.save();
+
+            ctx.strokeStyle = isFeverMode ? 'rgba(255, 215, 0, 0.4)' : 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(0, targetArea.y);
+            ctx.lineTo(canvas.width, targetArea.y);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(targetArea.x, targetArea.y, targetArea.radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+            ctx.fill();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = isFeverMode ? '#ffd700' : '#f3e5ab';
+            ctx.stroke();
+
+            notes.forEach(note => {
+                if (note.hit && note.subType !== 'roll') return;
+
+                ctx.save();
+
+                if (note.subType === 'roll') {
+                    const barHeight = targetArea.radius * 1.2;
+                    ctx.fillStyle = note.type === 'coal' ? 'rgba(255, 100, 0, 0.45)' : 'rgba(0, 150, 255, 0.45)';
+                    ctx.fillRect(note.x, note.y - barHeight / 2, note.length, barHeight);
+                    ctx.strokeStyle = note.type === 'coal' ? '#ff6600' : '#70c1ff';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(note.x, note.y - barHeight / 2, note.length, barHeight);
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 12px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`連打! (${note.hitsDone}/${note.hitsRequired})`, note.x + note.length / 2, note.y - barHeight / 2 - 6);
+                }
+
+                ctx.beginPath();
+                ctx.arc(note.x, note.y, targetArea.radius * (note.subType === 'triplet' ? 0.65 : 0.8), 0, Math.PI * 2);
+
+                if (note.subType === 'heal') {
+                    ctx.fillStyle = '#1b5e20';
+                    ctx.fill();
+                    ctx.strokeStyle = '#00e676';
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 18px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('🛢️', note.x, note.y);
+
+                    ctx.fillStyle = '#00e676';
+                    ctx.font = 'bold 10px sans-serif';
+                    ctx.fillText('回復', note.x, note.y - targetArea.radius * 0.85);
+
+                } else if (note.type === 'coal') {
+                    ctx.fillStyle = '#222';
+                    ctx.fill();
+                    ctx.strokeStyle = '#ff6600';
+                    ctx.lineWidth = note.subType === 'triplet' ? 4 : 3;
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#ff8800';
+                    ctx.font = 'bold 16px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('🔥', note.x, note.y);
+                } else {
+                    ctx.fillStyle = '#1d528d';
+                    ctx.fill();
+                    ctx.strokeStyle = '#70c1ff';
+                    ctx.lineWidth = note.subType === 'triplet' ? 4 : 3;
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 16px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('💧', note.x, note.y);
+                }
+
+                if (note.subType === 'triplet') {
+                    ctx.fillStyle = '#ff0055';
+                    ctx.font = 'bold 10px sans-serif';
+                    ctx.fillText('3連', note.x, note.y - targetArea.radius * 0.85);
+                }
+
+                ctx.restore();
+            });
+
+            ctx.restore();
+        }
+
+        // --- メインループ ---
+        function gameLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            const delta = Math.min((timestamp - lastTime) / 1000, 0.1);
+            lastTime = timestamp;
+
+            update(delta);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- イベント ---
+        startBtn.addEventListener('click', () => initGame());
+
+        coalBtn.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput('coal'); });
+        coalBtn.addEventListener('click', () => handleInput('coal'));
+
+        waterBtn.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput('water'); });
+        waterBtn.addEventListener('click', () => handleInput('water'));
+
+        window.addEventListener('keydown', (e) => {
+            if (e.repeat && gameState === STATE.PLAYING) {
+                if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') handleInput('coal');
+                if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') handleInput('water');
+                return;
+            }
+
+            if (gameState === STATE.PLAYING) {
+                if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') handleInput('coal');
+                else if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') handleInput('water');
+            } else if (gameState === STATE.MENU || gameState === STATE.GAMEOVER || gameState === STATE.CLEAR) {
+                if (e.key === ' ' || e.key === 'Enter') initGame();
+            }
+        });
+
+        // 初期描画
+        resizeCanvas();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>

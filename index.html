@@ -202,9 +202,7 @@
         // --- ゲーム状態・要素 ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const titleLocoCanvas = document.getElementById('titleLocoCanvas');
-        const titleCtx = titleLocoCanvas.getContext('2d');
-
+        
         const overlay = document.getElementById('overlay');
         const overlayTitle = document.getElementById('overlayTitle');
         const overlaySub = document.getElementById('overlaySub');
@@ -246,12 +244,6 @@
             targetArea.x = canvas.width / 2;
             targetArea.y = canvas.height * 0.72;
             targetArea.radius = Math.min(canvas.width * 0.08, 45);
-
-            // タイトルキャンバスリサイズ
-            const rect = titleLocoCanvas.parentElement.getBoundingClientRect();
-            titleLocoCanvas.width = rect.width;
-            titleLocoCanvas.height = rect.height;
-            drawTitleLocomotive();
         }
         window.addEventListener('resize', resizeCanvas);
 
@@ -262,145 +254,6 @@
                 currentDifficulty = e.target.getAttribute('data-diff');
             });
         });
-
-        // --- タイトル用リアル機関車イラスト描画 ---
-        function drawTitleLocomotive() {
-            const w = titleLocoCanvas.width;
-            const h = titleLocoCanvas.height;
-            if (w === 0 || h === 0) return;
-
-            titleCtx.clearRect(0, 0, w, h);
-
-            // 背景：ドラマチックな夜空グラデーション
-            const bgGrad = titleCtx.createLinearGradient(0, 0, 0, h);
-            bgGrad.addColorStop(0, '#090d16');
-            bgGrad.addColorStop(0.6, '#1c1524');
-            bgGrad.addColorStop(1, '#3a1f18');
-            titleCtx.fillStyle = bgGrad;
-            titleCtx.fillRect(0, 0, w, h);
-
-            // 満月
-            titleCtx.save();
-            titleCtx.fillStyle = '#fff4d0';
-            titleCtx.shadowColor = '#ffe599';
-            titleCtx.shadowBlur = 20;
-            titleCtx.beginPath();
-            titleCtx.arc(w * 0.75, h * 0.3, 24, 0, Math.PI * 2);
-            titleCtx.fill();
-            titleCtx.restore();
-
-            // 立ち上る背景の蒸気・雲
-            titleCtx.fillStyle = 'rgba(200, 190, 210, 0.15)';
-            for (let i = 0; i < 6; i++) {
-                titleCtx.beginPath();
-                titleCtx.arc(w * 0.2 + i * 40, h * 0.35 - Math.sin(i) * 15, 30 + i * 8, 0, Math.PI * 2);
-                titleCtx.fill();
-            }
-
-            // 機関車（迫力のある斜め前面パース描画）
-            const cx = w * 0.45;
-            const cy = h * 0.78;
-
-            // 線路
-            titleCtx.strokeStyle = '#666';
-            titleCtx.lineWidth = 3;
-            titleCtx.beginPath();
-            titleCtx.moveTo(0, cy + 15); titleCtx.lineTo(w, cy + 15);
-            titleCtx.moveTo(0, cy + 25); titleCtx.lineTo(w, cy + 25);
-            titleCtx.stroke();
-
-            // ボイラー胴体（金属感グラデーション）
-            const boilerGrad = titleCtx.createLinearGradient(cx - 90, cy - 60, cx - 90, cy);
-            boilerGrad.addColorStop(0, '#555');
-            boilerGrad.addColorStop(0.2, '#222');
-            boilerGrad.addColorStop(0.7, '#111');
-            boilerGrad.addColorStop(1, '#333');
-
-            titleCtx.fillStyle = boilerGrad;
-            titleCtx.beginPath();
-            titleCtx.ellipse(cx, cy - 25, 75, 30, 0, 0, Math.PI * 2);
-            titleCtx.fill();
-            titleCtx.strokeStyle = '#555';
-            titleCtx.lineWidth = 2;
-            titleCtx.stroke();
-
-            // キャブ (運転席)
-            titleCtx.fillStyle = '#1a1a1a';
-            titleCtx.fillRect(cx + 40, cy - 65, 55, 45);
-            titleCtx.fillStyle = '#aa0000'; // 屋根
-            titleCtx.fillRect(cx + 35, cy - 70, 65, 7);
-            
-            // 窓からの温かい光
-            titleCtx.fillStyle = '#ffb74d';
-            titleCtx.fillRect(cx + 55, cy - 55, 18, 18);
-
-            // 煙突
-            const chimneyGrad = titleCtx.createLinearGradient(cx - 50, 0, cx - 35, 0);
-            chimneyGrad.addColorStop(0, '#333');
-            chimneyGrad.addColorStop(0.5, '#666');
-            chimneyGrad.addColorStop(1, '#111');
-            titleCtx.fillStyle = chimneyGrad;
-            titleCtx.fillRect(cx - 52, cy - 75, 18, 30);
-            // 煙突の縁
-            titleCtx.fillRect(cx - 56, cy - 78, 26, 6);
-
-            // 蒸気ドーム
-            titleCtx.fillStyle = '#444';
-            titleCtx.beginPath();
-            titleCtx.arc(cx, cy - 58, 12, Math.PI, 0);
-            titleCtx.fill();
-
-            // ナンバープレート "C57 1"
-            titleCtx.fillStyle = '#8b0000';
-            titleCtx.fillRect(cx - 65, cy - 25, 26, 12);
-            titleCtx.strokeStyle = '#ffd700';
-            titleCtx.lineWidth = 1;
-            titleCtx.strokeRect(cx - 65, cy - 25, 26, 12);
-            titleCtx.fillStyle = '#ffd700';
-            titleCtx.font = 'bold 8px sans-serif';
-            titleCtx.textAlign = 'center';
-            titleCtx.fillText('C57 1', cx - 52, cy - 16);
-
-            // 迫力ある巨大フロントヘッドライト
-            titleCtx.save();
-            const lightX = cx - 75;
-            const lightY = cy - 30;
-            
-            // 強烈な光線
-            const beamGrad = titleCtx.createRadialGradient(lightX, lightY, 2, lightX - 180, lightY, 140);
-            beamGrad.addColorStop(0, 'rgba(255, 255, 220, 0.95)');
-            beamGrad.addColorStop(0.3, 'rgba(255, 220, 130, 0.4)');
-            beamGrad.addColorStop(1, 'rgba(255, 200, 100, 0)');
-            titleCtx.fillStyle = beamGrad;
-            titleCtx.beginPath();
-            titleCtx.moveTo(lightX, lightY);
-            titleCtx.lineTo(lightX - 160, lightY - 50);
-            titleCtx.lineTo(lightX - 160, lightY + 60);
-            titleCtx.closePath();
-            titleCtx.fill();
-
-            // ライト本体
-            titleCtx.fillStyle = '#ffd700';
-            titleCtx.beginPath();
-            titleCtx.arc(lightX, lightY, 10, 0, Math.PI * 2);
-            titleCtx.fill();
-            titleCtx.fillStyle = '#ffffff';
-            titleCtx.beginPath();
-            titleCtx.arc(lightX, lightY, 7, 0, Math.PI * 2);
-            titleCtx.fill();
-            titleCtx.restore();
-
-            // 煙突からの重厚な煙エフェクト
-            titleCtx.save();
-            for (let i = 0; i < 7; i++) {
-                const opacity = 0.8 - i * 0.1;
-                titleCtx.fillStyle = `rgba(220, 215, 210, ${opacity})`;
-                titleCtx.beginPath();
-                titleCtx.arc(cx - 50 - i * 22, cy - 80 - i * 8, 14 + i * 5, 0, Math.PI * 2);
-                titleCtx.fill();
-            }
-            titleCtx.restore();
-        }
 
         function initGame() {
             sounds.init();
